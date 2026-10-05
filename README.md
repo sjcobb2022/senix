@@ -11,6 +11,8 @@ Heavily inspired by RossTheComputerGuy's work and
 
 Made without the use of AI.
 
+## Plans
+
 Current ideas to get support working:
 
 1. mutable `/nix/store` overlay which allows for dynamic writing of selinux
@@ -50,7 +52,7 @@ how android operates with their selinux stuff.
 
 Having a truly immutable overlay store would ensure that
 
-Nice to haves with static image generation:
+### Nice to haves with static image generation:
 
 1. Tagging a parent directory
 2. Path globbing ala
@@ -61,18 +63,31 @@ Nice to haves with static image generation:
    nix store, but the image just adds metadata to the paths that match the
    specified patterns.
 
-Nix to haves in a nix module:
+### Nix to haves in a nix module:
 
 1. Some sort of DSL for defining rules
 2. Some way to tag an entire derivation
 3. Ability to create new selinux types, roles and users. (perhaps related to
    \#1)
 
-Approaches to getting an overlay work
+### Approaches to getting an overlay work
 
 1. Write a small program to walk the nix store with the specified rules, and
    then create the overlay.
 2. Find some sort of FS which handles the tagging easily via it's construction.
    May still require some scripting.
 
+## Extras
+
 https://opensource.com/business/13/11/selinux-policy-guide
+
+### secil / nix dsl
+
+This is not necessarily a priority, and could in fact be provided in another
+flake, or something external. However, since SELinux
+[CIL](https://github.com/SELinuxProject/selinux/tree/main/secilc) is basically a
+functional language, we could quite easily create a nix wrapper which generates
+this from some syntax tree.
+
+If we have issues executing cil, we can still then render it to whatever
+structure we need to get it to work.
