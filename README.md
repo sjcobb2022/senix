@@ -23,14 +23,20 @@ Current ideas to get support working:
    could attach rules via the metadata.
 4. Maintain a set of overlays externally, which add a `passthru.selinux.roles`
    which define the roles for all outputs of a derivation. This would require
-   most of nixpkgs to be ported over.
-5. Just have an activation script which mounts the store in rw so that we can
-   execute over the whole store.
+   most of nixpkgs pkgs to be ported over.
+5. Just have an activation script which mounts the store in rw (if possible) so
+   that we can execute over the whole store.
 
 The "most nix approach" I feel is option 2, since we can define rules. HOWEVER
 this limits updating SELinux rules to build time. Meaning that a new derivation
 created by nix build probably would not work that well. It MAY be triggered by a
 post-build-hook in nix.conf for a global post build, but that feels tacky.
+
+Option 2 would require storing the nix store in a new location, and pointing the
+various daemon, GC and other nix store tools at it. It would also require an
+overlayfs of built paths that iterates over the paths. This COULD be slow in nix
+and therefore may require a fast application to determine all the paths and all
+of their selinux settings. Not sure if SELinux has a tool for this.
 
 I am currently more in favour of building a static image which lays out the
 structure of the nix store. We can control the generation of these paths. If we
@@ -91,3 +97,66 @@ this from some syntax tree.
 
 If we have issues executing cil, we can still then render it to whatever
 structure we need to get it to work.
+
+Given that CIL is an intermediary format, we could use this to either format
+written rules as "regular" file_contexts.local, or format the CIL intermediary
+to CIL, and then compile it.
+
+## who is this for?
+
+- Securing a system for users
+  - Home users
+    - The minority of home users will even think of security.
+    - A home user will most likely want somewhat lax rules if using selinux.
+    - A home user will access many files and have many applications.
+      - Having many applications would require malleable rules, or a large
+        quantity of rules.
+    - Configuration and software may change frequently.
+    - Has control over their own configuration.
+
+  - Enterprise users
+    - If working security focused enterprise, things can move slow.
+    - Different organisational roles require different restrictions on device
+      mutability.
+      - Someone in a more management-focused position would probably be fine
+        with a locked down system which has a browser and some bespoke
+        organisation-specific software perhaps.
+      - A tech related role would need some more flexibility
+    - Wants to avoid data loss / getting compromised, although depending on the
+      scope of the user this may not be too big a deal. (with proper
+      organisation silos)
+    - Does not have control over their own system (often depends on size of the
+      org)
+    - May have a standard suite of software (or not) for employees to use.
+
+  - Government users
+    - Require a strict data security practices
+    - Does not want to get hacked at all costs
+      - May have sensitive data
+      - Has a responsibility to protect data
+    - Government may have goal to move towards sovereign tech (see securix +
+      dawo)
+    - Once again, may have widely different organisation roles.
+    - Definitely does not (should not?) have control over their own systems.
+    - May have a standard suite of software for workers to use
+
+- Securing a system for deployment
+  - Servers
+    - Bare metal servers that run exposed (or semi-exposed for local
+      deployments) software greatly benefit from additional MAC.
+    - Only ever changes on software update/redeployment so requires redeploy.
+  - Docker images
+    - It may still be pertinent for some organisations to run SELinux in docker,
+      as there still may be some artefacts produced by software which may be
+      valuable to an attacker.
+    - Can benefit exceptionally from MAC by reducing attack surface.
+    - Redeployment often redeploys a new image, and therefore massively static.
+
+Catering towards the more static aspects of servers and users, is easier, as
+less dynamic script are required. Therefore, enterprise/government users and
+deployable systems are the core target for this. We can play into their
+staticness to some degree here, so that we don't need a boatload of dynamic
+scripts.
+
+This leads to the conclusion that option 2 from the plans section is most likely
+the best approach still.
