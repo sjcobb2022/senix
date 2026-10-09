@@ -28,6 +28,7 @@
     nixosModules.senix = import ./module.nix;
     nixosModules.default = self.nixosModules.senix;
 
+    # WARNING: THIS MODULE IS NOT WORKING AND SO TESTS WILL NOT WORK
     nixosTests.selinux = forEachPkgs (pkgs: (import ./tests/selinux.nix {
       inherit pkgs;
       inherit self;
