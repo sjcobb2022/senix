@@ -26,6 +26,11 @@ Current ideas to get support working:
    most of nixpkgs pkgs to be ported over.
 5. Just have an activation script which mounts the store in rw (if possible) so
    that we can execute over the whole store.
+6. Hook into the nix cpp and use RegisterStoreImplementation to register a new
+   store implementation which writes to the nix store and generates metadata
+   matching some rules?
+7. Just write a big nix_store_t over the store on mount, and add transition
+   rules from that to the other domains.
 
 The "most nix approach" I feel is option 2, since we can define rules. HOWEVER
 this limits updating SELinux rules to build time. Meaning that a new derivation
@@ -160,3 +165,32 @@ scripts.
 
 This leads to the conclusion that option 2 from the plans section is most likely
 the best approach still.
+
+One further point that this raises is that for enterprise and governmental
+bodies, deployment of a configuration is often not done on-device. It would
+probably be done remotely. Therefore, it is appropriate to require an approach
+which can be remotely deployed. Local change to the filesystem does not meet the
+reproducible requirements that we set out to achieve.
+
+## Additional things to patch
+
+Reference table in
+https://wiki.archlinux.org/title/SELinux#Current_status_in_Arch_Linux for list
+of pkgs which need to be compiled with selinux enabled.
+
+List of packages that need selinux support.
+
+- coreutils
+- cronie
+- dbus
+- findutils
+- iproute2
+- openssh
+- pam
+- pambase
+- psmisc
+- shadow
+- sudo
+- systemd
+- util-linux
+- uutils-coreutils
