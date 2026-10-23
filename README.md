@@ -33,10 +33,11 @@ created by nix build probably would not work that well. It MAY be triggered by a
 post-build-hook in nix.conf for a global post build, but that feels tacky.
 
 Option 1 would require storing the nix store in a new location, and pointing the
-various daemon, GC and other nix store tools at it. It would also require an
-overlayfs of built paths that iterates over the paths. This COULD be slow in nix
-and therefore may require a fast application to determine all the paths and all
-of their selinux settings. Not sure if SELinux has a tool for this.
+various daemon, GC and other nix store tools at it. This is a bit of a turnoff
+for some. It would also require an overlayfs of built paths that iterates over
+the paths. This COULD be slow in nix and therefore may require a fast
+application to determine all the paths and all of their selinux settings. Not
+sure if SELinux has a tool for this.
 
 Having a purely static image would not be too bad, as it would unconditionally
 block new software and require administrator or privileged user access to
