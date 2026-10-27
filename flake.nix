@@ -21,6 +21,13 @@
     ];
 
     forEachPkgs = f: forEachSystem (sys: f nixpkgs.legacyPackages.${sys});
+
+    mkTest = path:
+      forEachPkgs (pkgs:
+        import path {
+          inherit pkgs;
+          inherit self;
+        });
   in {
     overlays.senix = import ./overlay.nix;
     overlays.default = self.overlays.senix;
@@ -29,9 +36,10 @@
     nixosModules.default = self.nixosModules.senix;
 
     # WARNING: THIS MODULE IS NOT WORKING AND SO TESTS WILL NOT WORK
-    nixosTests.selinux = forEachPkgs (pkgs: (import ./tests/selinux.nix {
-      inherit pkgs;
-      inherit self;
-    }));
+    nixosTests = {
+      selinux = mkTest ./tests/selinux.nix;
+      remote-deployment = mkTest ./tests/remote-deployment.nix;
+      build-in-vm = mkTest ./tests/build-image-in-vm.nix;
+    };
   };
 }

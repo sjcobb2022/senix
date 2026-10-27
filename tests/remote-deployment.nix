@@ -2,46 +2,90 @@
   pkgs,
   self,
   ...
-}:
-pkgs.testers.nixosTest {
-  name = "remote-deployment";
+}: let
+  inherit
+    (import (pkgs.path + "/nixos/tests/ssh-keys.nix") pkgs)
+    snakeOilPrivateKey
+    snakeOilPublicKey
+    ;
 
-  nodes = {
-    machine1 = {pkgs, ...}: {
-      environment.systemPackages = [
-        pkgs.nix
-        pkgs.openssh
-      ];
-    };
-
-    machine2 = {pkgs, ...}: {
-      imports = [
-        self.nixosModules.default
-      ];
-
-      nixpkgs.overlays = [
-        self.overlays.default
-      ];
-
-      services.openssh.enable = true;
-    };
+  deployable = {
+    services.openssh.enable = true;
+    users.users.root.openssh.authorizedKeys.keys = [snakeOilPublicKey];
   };
+in
+  pkgs.testers.nixosTest {
+    name = "remote-deployment";
 
-  testScript = ''
-    machine1.start()
-    machine2.start()
+    nodes = {
+      machine1 = {nodes, ...}: {
+        nix.settings.experimental-features = ["nix-command"];
+        virtualisation.additionalPaths = [
+          nodes.target.system.build.toplevel
+        ];
+      };
 
-    machine1.wait_for_unit("multi-user.target")
-    machine2.wait_for_unit("sshd.service")
+      machine2 = {
+        imports = [deployable];
+      };
 
-    # TODO: Exchange key material
+      target = {
+        lib,
+        nodes,
+        ...
+      }: {
+        imports = [
+          deployable
+          self.nixosModules.default
+        ];
 
-    # TODO: Deploy SELinux image from machine1
+        nixpkgs.overlays = [
+          self.overlays.default
+        ];
 
-    # TODO: Reboot machine2
+        security.selinux.enable = true;
+        security.selinux.mode = "enforcing";
 
+        networking.hostName = lib.mkForce "machine2";
+        networking.interfaces.eth1.ipv4.addresses =
+          lib.mkForce nodes.machine2.networking.interfaces.eth1.ipv4.addresses;
+      };
+    };
 
-    # Remote deployed should be enforced.
-    machine2.succeed("getenforce")
-  '';
-}
+    testScript = {nodes, ...}: let
+      toplevel = nodes.target.system.build.toplevel;
+    in ''
+      machine1.start()
+      machine2.start()
+
+      machine1.wait_for_unit("multi-user.target")
+      machine2.wait_for_unit("sshd.service")
+      machine2.wait_for_open_port(22)
+
+      with subtest("exchange key material"):
+        machine1.succeed(
+            "mkdir -m 700 -p /root/.ssh/",
+            "install -m 600 ${snakeOilPrivateKey} /root/.ssh/id_ecdsa",
+            "ssh -o StricHostKeyChecking=accept-new root@machine2 true",
+        )
+
+      with subtest("deploy SELinux system from machine1 to machine2"):
+        machine1.succeed("nix copy --to ssh://root@machine2 ${toplevel}")
+        machine1.succeed(
+            "ssh root@machine2 "
+            "'nix-env -p /nix/var/profiles/system --set ${toplevel} && ${toplevel}/bin/swith-to-configuration boot'"
+        )
+
+      with subtest("reboot into deployed system"):
+          machine2.shutdown()
+          machine2.start()
+          machine2.wait_for_unit("multi-user.target")
+          assert machine2.succeed("readlink -f /run/current-system").strip() == "${toplevel}"
+
+      with subtest("new system has SELinux enabled"):
+          assert machine2.succeed("getenforce").strip() == "Enforcing"
+          assert machine2.succeed("findmnt -no FSTYPE /nix/store").strip() == "overlay"
+          machine2.wait_for_open_port(22)
+          assert machine1.succeed("ssh root@machine2 getenforce").strip() == "Enforcing"
+    '';
+  }
