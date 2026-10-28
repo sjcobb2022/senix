@@ -212,3 +212,17 @@ List of packages that need selinux support.
 - systemd
 - util-linux
 - uutils-coreutils
+
+## Note on extraction of file contexts
+
+We can use `semodule_unpackage` to get a module and a file context out from a
+compiled `.pp`. This is notably useful for handling the compiled refpolicy.
+
+## mkfs.erofs
+
+We do have the ability to pass file contexts into mkfs.erofs... which may
+perhaps allow us to mark files in a tar file for example, just by default
+without having to write a c program.
+
+ref:
+https://man.archlinux.org/man/extra/erofs-utils/mkfs.erofs.1.en#file-contexts=
