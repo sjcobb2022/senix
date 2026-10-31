@@ -49,7 +49,6 @@ in {
     #   - local daemon store
     nix.settings.store = "auto?real=${cfg.realStoreDir}";
 
-    # Need to find a way to add our own metdata that would make things a lot easier.
     fileSystems."/nix/store" = {
       overlay = {
         lowerdir = [
@@ -58,6 +57,7 @@ in {
       };
     };
 
+    # This... should help with getting sysroot etc prefixed where necessary.
     virtualisation.fileSystems."/nix/store" = {
       overlay = {
         # Make it before so it get's concatenated correctly...
@@ -68,13 +68,17 @@ in {
       };
     };
 
-    # Mount with metacopy (double colon)
-
-    # Because we are handling the lowerdir manually, that does mean that I think initrd will not work.
-    # Or at least, we will not have selinux in initrd. Since we are not doing stuff in respect to that
-    # And the nix store probably won't be mounted. And we would have to also label everything in
-    # config.system.path or something.
-    # Ideally since it is kinda a /sysroot overlay thing anyway, we would just kinda inject it in there somehow.
+    # We have 2 solutions here. Implement our own store, or perhaps
+    # use the experimental-local-overlay-store.
+    #
+    # Leaning towards the experimental-overlay-store here.
+    # Just need to make sure that it is mounted properly.
+    #
+    # If /nix/store is already an overlayfs... what should we do.
+    #
+    # One solution could be to use an overlay over the config,
+    # and provide which the overlay moves the /nix/store
+    # config to a new path, and sets the stuff for the module.
 
     system.build.selinuxStoreImage = cfg.image;
   };
