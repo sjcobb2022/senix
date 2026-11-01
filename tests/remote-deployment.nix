@@ -37,7 +37,7 @@ in
         imports = [
           deployable
           self.nixosModules.default
-          ../modules/overlayfs.nix
+          self.nixosModules.overlayfs
         ];
 
         nixpkgs.overlays = [

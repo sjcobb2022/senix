@@ -9,9 +9,19 @@
 
   cfg = config.security.selinux.store;
 
+  realStoreDir = cfg.realStoreDir;
+
   closureInfo = pkgs.closureInfo {
     rootPaths = cfg.closure;
   };
+
+  originalStoreDefinitions =
+    lib.filter
+    (d: d.file != ./overlayfs.nix)
+    options.fileSystems."/nix/store".definitions;
+
+  originalStore =
+    lib.mkMerge (map (d: d.value) originalStoreDefinitions);
 in {
   options.security.selinux.store = {
     # The actual location of the nix store
@@ -19,25 +29,26 @@ in {
       type = types.str;
       default = "/.nix-store";
     };
+
+    metadaDataDir = mkOption {
+      type = types.str;
+      default = "/.selinux-metadata";
+    };
+
     # The location of the stored contexts.
     contextsDir = mkOption {};
 
     # The system paths.
     closure = mkOption {
       type = types.listOf types.package; # Either a derivation or a store path. Which is what we want.
-      default = [config.system.build.toplevel];
+      default = [config.system.build.toplevel]; # This should be more than enough for most cases.
       defaultText = literalExpression "[ config.system.build.toplevel ]";
     };
-
-    metadaDataDir = mkOption {};
   };
 
   config = {
+    # Probably need some good assertions here.
     assertions = [
-      # {
-      #   assertion = options.fileSystems."/nix/store".definitions == [];
-      #   message = "Cannot define /nix/store manually in filesystem. Use ${cfg.realStoreDir} instead.";
-      # }
     ];
 
     # Point it to the right store. For builders etc.
@@ -49,24 +60,11 @@ in {
     #   - local daemon store
     nix.settings.store = "auto?real=${cfg.realStoreDir}";
 
-    fileSystems."/nix/store" = {
-      overlay = {
-        lowerdir = [
-          "/nix/.selinux-metadata:"
-        ];
-      };
-    };
+    virtualisation.fileSystems.${realStoreDir} = originalStore;
 
-    # This... should help with getting sysroot etc prefixed where necessary.
-    virtualisation.fileSystems."/nix/store" = {
-      overlay = {
-        # Make it before so it get's concatenated correctly...
-        # This is the most braindead hack imaginable and is awful and I would never reccomend this, butttt.....
-        lowerdir = lib.mkBefore [
-          "/nix/.selinux-metadata:"
-        ];
-      };
-    };
+    # We can just change the mount point of the configured nix store to point to a new location.
+    # e.g. fileSystems."/nix/store".mountPoint = "/.nix-store";
+    #      fileSystems."/nix/selinux-store".mountPoint = "/nix/store";
 
     # We have 2 solutions here. Implement our own store, or perhaps
     # use the experimental-local-overlay-store.

@@ -25,7 +25,8 @@ Current ideas to get support working:
 4. Hook into the nix cpp and use RegisterStoreImplementation to register a new
    store implementation which writes to the nix store and generates metadata
    matching some rules?
-5. Custom FUSE filesystem. Control how xattrs are done.
+5. Custom FUSE filesystem. Control how xattrs are done on the level of the
+   fusefs.
 
 The "most nix approach" I feel is option 1, since we can define rules. HOWEVER
 this limits updating SELinux rules to build time. Meaning that a new derivation
@@ -47,6 +48,12 @@ for them (see [dawo](https://dawo.overheid-a.nl/),
 approach. Because of SELinux' ability to lockdown so heavily, requiring a
 restart may be the most feasible operation here. I believe this is similar to
 how android operates with their selinux stuff.
+
+The FUSE approach probably provides the most flexibility for more runtime
+behaviours (building packages locally etc). A slight issue with this approach is
+that it only works for local deployments. i.e. A system that is not built
+locally needs to produce an artefact that a store can read, and load it
+deterministically. This could be done, but would need some careful design.
 
 ### Comparison of custom store vs overlay
 
