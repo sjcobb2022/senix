@@ -67,14 +67,14 @@ in
         machine1.succeed(
             "mkdir -m 700 -p /root/.ssh/",
             "install -m 600 ${snakeOilPrivateKey} /root/.ssh/id_ecdsa",
-            "ssh -o StricHostKeyChecking=accept-new root@machine2 true",
+            "ssh -o StrictHostKeyChecking=accept-new root@machine2 true",
         )
 
       with subtest("deploy SELinux system from machine1 to machine2"):
         machine1.succeed("nix copy --to ssh://root@machine2 ${toplevel}")
         machine1.succeed(
             "ssh root@machine2 "
-            "'nix-env -p /nix/var/profiles/system --set ${toplevel} && ${toplevel}/bin/swith-to-configuration boot'"
+            "'nix-env -p /nix/var/profiles/system --set ${toplevel} && ${toplevel}/bin/switch-to-configuration boot'"
         )
 
       with subtest("reboot into deployed system"):
