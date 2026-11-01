@@ -32,7 +32,8 @@
     overlays.senix = import ./overlay.nix;
     overlays.default = self.overlays.senix;
 
-    nixosModules.senix = import ./module.nix;
+    nixosModules.senix = import ./modules/selinux.nix;
+    nixosModules.overlayfs = import ./modules/overlayfs.nix;
     nixosModules.default = self.nixosModules.senix;
 
     # WARNING: THIS MODULE IS NOT WORKING AND SO TESTS WILL NOT WORK
