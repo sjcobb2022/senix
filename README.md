@@ -4,7 +4,7 @@ Out of tree SELinux support for NixOS.
 
 Taking the senix route.
 
-Heavily inspired by RossTheComputerGuy's work and
+Heavily based on RossTheComputerGuy's work and
 [blog](https://tristanxr.com/post/selinux-on-nixos/) and various
 [other](https://discourse.nixos.org/t/selinux-on-nixos/62729)
 [discussions](https://github.com/NixOS/nix/pull/2670).
