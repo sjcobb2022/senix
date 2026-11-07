@@ -12,6 +12,20 @@
   deployable = {
     services.openssh.enable = true;
     users.users.root.openssh.authorizedKeys.keys = [snakeOilPublicKey];
+
+    # A deployable machine should be able to write to the bootloader entry.
+    virtualisation.useBootLoader = true;
+    virtualisation.useNixStoreImage = true;
+    virtualisation.useEFIBoot = true;
+    boot.loader.systemd-boot.enable = true;
+    boot.loader.efi.canTouchEfiVariables = true;
+
+    virtualisation.diskSize = 16384; # increase disksize because it fails otherwise.
+    virtualisation.writableStoreUseTmpfs = false; # use disk not tmpfs
+    virtualisation.memorySize = 2048; # increase memory
+
+    boot.growPartition = true;
+    virtualisation.fileSystems."/".autoResize = true;
   };
 in
   pkgs.testers.nixosTest {
@@ -39,6 +53,9 @@ in
           self.nixosModules.default
           self.nixosModules.overlayfs
         ];
+
+        # Allow switching to this configuration.
+        system.switch.enable = true;
 
         nixpkgs.overlays = [
           self.overlays.default
@@ -70,11 +87,12 @@ in
             "ssh -o StrictHostKeyChecking=accept-new root@machine2 true",
         )
 
+
       with subtest("deploy SELinux system from machine1 to machine2"):
         machine1.succeed("nix copy --to ssh://root@machine2 ${toplevel}")
         machine1.succeed(
             "ssh root@machine2 "
-            "'nix-env -p /nix/var/profiles/system --set ${toplevel} && ${toplevel}/bin/switch-to-configuration boot'"
+            "'nix-env -p /nix/var/nix/profiles/system --set ${toplevel} && ${toplevel}/bin/switch-to-configuration boot'"
         )
 
       with subtest("reboot into deployed system"):

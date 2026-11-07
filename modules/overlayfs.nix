@@ -14,14 +14,6 @@
   closureInfo = pkgs.closureInfo {
     rootPaths = cfg.closure;
   };
-
-  originalStoreDefinitions =
-    lib.filter
-    (d: d.file != ./overlayfs.nix)
-    options.fileSystems."/nix/store".definitions;
-
-  originalStore =
-    lib.mkMerge (map (d: d.value) originalStoreDefinitions);
 in {
   options.security.selinux.store = {
     # The actual location of the nix store
@@ -30,7 +22,7 @@ in {
       default = "/.nix-store";
     };
 
-    metadaDataDir = mkOption {
+    metadataDir = mkOption {
       type = types.str;
       default = "/.selinux-metadata";
     };
@@ -60,7 +52,35 @@ in {
     #   - local daemon store
     nix.settings.store = "auto?real=${cfg.realStoreDir}";
 
-    virtualisation.fileSystems.${realStoreDir} = originalStore;
+    # If the configuration defines /nix/store, then we can change the mountpoint.
+    virtualisation.fileSystems."/nix/store" = lib.mkIf (config.virtualisation.fileSystems ? "/nix/store") {
+      mountPoint = cfg.realStoreDir;
+    };
+
+    fileSystems."/nix/store" = lib.mkIf (config.fileSystems ? "/nix/store") {
+      mountPoint = cfg.realStoreDir;
+    };
+
+    # EMPTY FOR TESTING
+    # virtualisation.fileSystems.${cfg.metadataDir} = lib.mkIf config.virtualisation.useBootLoader {
+    #   device = "none";
+    #   fsType = "tmpfs";
+    #   neededForBoot = true;
+    #   options = ["mode=0755"];
+    # };
+
+    virtualisation.fileSystems."/nix/store-selinux" = {
+      mountPoint = "/nix/store";
+      device = "overlay";
+      fsType = "overlay";
+      neededForBoot = true;
+      # need: overlayfs,
+      depends = [cfg.realStoreDir cfg.metadataDir];
+      overlay.lowerdir = [
+        "${cfg.metadataDir}:"
+        cfg.realStoreDir
+      ];
+    };
 
     # We can just change the mount point of the configured nix store to point to a new location.
     # e.g. fileSystems."/nix/store".mountPoint = "/.nix-store";

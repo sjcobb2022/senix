@@ -2,7 +2,7 @@
   description = "SELinux support for NixOS";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 
     flake-compat = {
       url = "github:NixOS/flake-compat";
@@ -36,7 +36,7 @@
     nixosModules.overlayfs = import ./modules/overlayfs.nix;
     nixosModules.default = self.nixosModules.senix;
 
-    # WARNING: THIS MODULE IS NOT WORKING AND SO TESTS WILL NOT WORK
+    # WARNING: THESE TESTS ARE NOT WORKING AND ARE UNDER DEVELOPMENT
     nixosTests = {
       selinux = mkTest ./tests/selinux.nix;
       remote-deployment = mkTest ./tests/remote-deployment.nix;
