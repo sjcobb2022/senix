@@ -3,9 +3,9 @@
   lib,
   pkgs,
   ...
-}: let
-  inherit
-    (lib)
+}:
+let
+  inherit (lib)
     mkIf
     concatStringsSep
     literalExpression
@@ -15,40 +15,43 @@
 
   cfg = config.security.selinux;
 
-  context = types.either types.str (types.submodule {
-    options = {
-      user = mkOption {
-        type = types.str;
-        default = "system_u";
-        description = "SELinux user component.";
-        example = "system_u";
-      };
+  context = types.either types.str (
+    types.submodule {
+      options = {
+        user = mkOption {
+          type = types.str;
+          default = "system_u";
+          description = "SELinux user component.";
+          example = "system_u";
+        };
 
-      role = mkOption {
-        type = types.str;
-        default = "object_r";
-        description = "SELinux role component.";
-        example = "object_r";
-      };
+        role = mkOption {
+          type = types.str;
+          default = "object_r";
+          description = "SELinux role component.";
+          example = "object_r";
+        };
 
-      type = mkOption {
-        type = types.str;
-        description = "SELinux object type.";
-        example = "sshd_exec_t";
-      };
+        type = mkOption {
+          type = types.str;
+          description = "SELinux object type.";
+          example = "sshd_exec_t";
+        };
 
-      level = mkOption {
-        type = types.str;
-        default = "s0";
-        description = "SELinux MLS/MCS level and category range.";
-        example = "s0";
+        level = mkOption {
+          type = types.str;
+          default = "s0";
+          description = "SELinux MLS/MCS level and category range.";
+          example = "s0";
+        };
       };
-    };
-  });
+    }
+  );
 
-  mkContext = value:
-    if builtins.isString value
-    then value
+  mkContext =
+    value:
+    if builtins.isString value then
+      value
     else
       concatStringsSep ":" [
         value.user
@@ -103,18 +106,18 @@
       };
     };
   };
-in {
+in
+{
   options.security.selinux = {
     fileContexts = mkOption {
       type = types.attrsOf fileContext;
-      default = {};
+      default = { };
       description = ''
         SELinux filesystem context rules.
       '';
     };
   };
 
-  config =
-    mkIf cfg.enable {
-    };
+  config = mkIf cfg.enable {
+  };
 }

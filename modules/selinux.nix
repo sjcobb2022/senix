@@ -4,18 +4,22 @@
   lib,
   pkgs,
   ...
-}: let
+}:
+let
   cfg = config.security.selinux;
-in {
+in
+{
   options.security.selinux = {
     enable = lib.mkEnableOption "SELinux";
 
     policy = lib.mkOption {
       type = lib.types.path;
       description = "The path to the SELinux policy.";
-      default = "${pkgs.selinux-refpolicy.override {
-        inherit (cfg) policyVersion;
-      }}/share/selinux/refpolicy";
+      default = "${
+        pkgs.selinux-refpolicy.override {
+          inherit (cfg) policyVersion;
+        }
+      }/share/selinux/refpolicy";
       defaultText = lib.literalExpression ''
         "''${pkgs.selinux-refpolicy.override {
           inherit (config.security.selinux) policyVersion;
@@ -57,7 +61,7 @@ in {
       }
     ];
 
-    security.lsm = ["selinux"];
+    security.lsm = [ "selinux" ];
 
     environment.etc = {
       "selinux/config".text = ''
@@ -94,7 +98,7 @@ in {
     ];
 
     system.activationScripts.selinux = {
-      deps = ["etc"];
+      deps = [ "etc" ];
 
       text = ''
         install -d -m0755 /var/lib/selinux
