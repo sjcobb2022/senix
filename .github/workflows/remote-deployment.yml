@@ -13,4 +13,4 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: DeterminateSystems/magic-nix-cache-action@main
       - name: Run remote-deployment nixosTest
-        run: nix build .#nixosTests.remote-deployment.x86_64-linux -L 
+        run: nix build .#checks.x86_64-linux.remote-deployment -L 
