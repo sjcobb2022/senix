@@ -15,7 +15,6 @@ let
 
     # A deployable machine should be able to write to the bootloader entry.
     virtualisation.useBootLoader = true;
-    virtualisation.useNixStoreImage = true;
     virtualisation.useEFIBoot = true;
     boot.loader.systemd-boot.enable = true;
     boot.loader.efi.canTouchEfiVariables = true;
