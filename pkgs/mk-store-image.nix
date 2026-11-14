@@ -2,7 +2,8 @@
   lib,
   stdenvNoCC,
   erofs-utils,
-  gnutar,
+  coreutils,
+  findutils,
   closure,
   contexts,
 }:
@@ -12,37 +13,32 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
   nativeBuildInputs = [
     erofs-utils
-    gnutar
+    coreutils
+    findutils
   ];
-
   dontUnpack = true;
   dontConfigure = true;
   dontBuild = true;
 
   installPhase = ''
-    runHook preinstall
+    runHook preInstall
 
-    # Store paths relative to /nix/store, one per line
-    sed 's,^/nix/store/,,' ${closure}/store-paths > store-paths.relative
+    root="$TMPDIR/root"
+    mkdir -p "$root/nix/store"
 
-    # Deterministic tar stream of the closure, piped straight into mkfs.erofs
-    tar \
-      --create \
-      --file=- \
-      --directory=/nix/store \
-      --files-from=store-paths.relative \
-      --format=pax \
-      --sort=name \
-      --mtime=@0 |
-    mkfs.erofs \
-      -zlz4 \
-      -T 0 \
-      --file-contexts=${contexts} \
+    xargs -d '\n' -a ${closure}/store-paths \
+      cp -r --no-dereference --attributes-only --preserve=mode \
+         -t "$root/nix/store"
+
+    mkfs.erofs -zlz4 -T 0 \
+      --force-uid=0 --force-gid=0 \
       -U 00000000-0000-0000-0000-000000000000 \
-      "$out" -
+      "$out" "$root"
 
     runHook postInstall
   '';
+
+  # --file-contexts=${contexts} \
 
   meta = {
     description = "Reproducible EROFS image containing a Nix closure";
