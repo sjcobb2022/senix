@@ -4,58 +4,75 @@
   pkgs,
   extendModules,
   options,
+  utils,
   ...
-}:
-let
+}: let
   inherit (lib) mkOption types literalExpression;
 
   cfg = config.security.selinux.store;
 
   # Create a base version of this config with this module disabled so we avoid getting infinite recursions.
   base = extendModules {
-    modules = [ { security.selinux.store.enable = lib.mkForce false; } ];
+    modules = [{security.selinux.store.enable = lib.mkForce false;}];
   };
 
   closureInfo = pkgs.closureInfo {
     rootPaths = cfg.closure;
   };
 
+  hasVmFs = options.virtualisation ? fileSystems;
+  withFs = defs:
+    if hasVmFs
+    then {virtualisation.fileSystems = defs;}
+    else {fileSystems = defs;};
+
+  hasStoreMount = base.config.fileSystems ? "/nix/store";
+  systemdInitrd = base.config.boot.initrd.systemd.enable;
+
+  realStoreDir = toString cfg.realStoreDir;
+  metadataDir = toString cfg.metadataDir;
+
   erofsImage = pkgs.callPackage ../pkgs/mk-store-image.nix {
     closure = closureInfo;
     contexts = null;
   };
 
-  hasVmFs = options.virtualisation ? fileSystems;
-  withFs = defs: if hasVmFs then { virtualisation.fileSystems = defs; } else { fileSystems = defs; };
+  imagePath = let
+    p = "${realStoreDir}/${builtins.baseNameOf erofsImage}";
+  in
+    if systemdInitrd
+    then "/sysroot${p}"
+    else p;
 
-  hasStoreMount = base.config.fileSystems ? "/nix/store";
-in
-{
+  needsBindUnit = !hasStoreMount && systemdInitrd;
+  mountUnit = p: "${utils.escapeSystemdPath "/sysroot${p}"}.mount";
+in {
   options.security.selinux.store = {
     enable = mkOption {
       type = types.bool;
-      default = false;
+      default = true;
       internal = true;
     };
 
-    # The actual location of the nix store
     realStoreDir = mkOption {
-      type = types.str;
+      type = types.path;
       default = "/.nix-store";
+      description = "The actual location of the nix store.";
     };
 
     metadataDir = mkOption {
-      type = types.str;
+      type = types.path;
       default = "/.selinux-metadata";
+      description = "Where the erofs image holding the SELinux metadata is mounted.";
     };
 
     # The location of the stored contexts.
-    contextsDir = mkOption { };
+    contextsDir = mkOption {};
 
     # The system paths.
     closure = mkOption {
       type = types.listOf types.package; # Either a derivation or a store path. Which is what we want.
-      default = [ base.config.system.build.toplevel ]; # This should be more than enough for most cases.
+      default = [base.config.system.build.toplevel]; # This should be more than enough for most cases.
       defaultText = literalExpression "[ some_config.system.build.toplevel ]";
       description = ''
         A list of closures to be described by the nixos system
@@ -65,6 +82,11 @@ in
 
   config = lib.mkIf cfg.enable (
     lib.mkMerge [
+      # # Assertions
+      # {
+      # }
+
+      # Common store and settings
       {
         # Point it to the right store. For builders etc.
         # For local interactions, we need to know where the actual store is.
@@ -73,26 +95,31 @@ in
         #   - experimental local overlay store
         #   - experimental mounted ssh store
         #   - local daemon store
-        nix.settings.store = "auto?real=${cfg.realStoreDir}";
+        nix.settings.store = "auto?real=${realStoreDir}";
 
         # Need erofs loop and overlay for the stores
-        boot.initrd.supportedFilesystems = [ "erofs" ];
+        boot.initrd.supportedFilesystems = ["erofs"];
         boot.initrd.kernelModules = [
           "loop"
           "erofs"
           "overlay"
         ];
+
+        # Make sure the image is in the closure since we only reference by string
+        system.extraDependencies = [erofsImage];
       }
 
+      # Setup absolute filesystem stuff
       (withFs {
         ${cfg.metadataDir} = {
-          device = "${erofsImage}";
+          device = imagePath;
           fsType = "erofs";
           options = [
             "loop"
             "ro"
           ];
           neededForBoot = true;
+          depends = [realStoreDir];
         };
 
         "/nix/store-selinux" = {
@@ -105,96 +132,57 @@ in
             "redirect_dir=on"
           ];
           depends = [
-            cfg.metadataDir
-            cfg.realStoreDir
+            metadataDir
+            realStoreDir
           ];
           # realstoreDir should be dataonly
           overlay.lowerdir = [
-            "${cfg.metadataDir}:"
-            cfg.realStoreDir
+            metadataDir
+            realStoreDir
           ];
         };
       })
 
-      (withFs
-        # If the configuration defines /nix/store, then we can change the mountpoint.
-        (
-          lib.mkIf hasStoreMount {
-            "/nix/store".mountPoint = cfg.realStoreDir;
-          }
-        )
-      )
+      # Move mountPoint of nix store if already present.
+      (lib.mkIf hasStoreMount (withFs {
+        "/nix/store".mountPoint = cfg.realStoreDir;
+      }))
 
-      (withFs (
-        lib.mkIf (!hasStoreMount) {
-          # expose it as realStoreDir
-          ${cfg.realStoreDir} = {
-            device = "/nix/store";
-            options = [ "bind" ];
-            neededForBoot = true;
+      # No nix store defined, therefore we create our own bind mounted one at specified location.
+      (lib.mkIf (!hasStoreMount && !systemdInitrd) (withFs {
+        ${realStoreDir} = {
+          device = "/nix/store";
+          fsType = "none";
+          options = ["bind"];
+          neededForBoot = true;
+        };
+      }))
+
+      # If we need a bind unit, then we have to bind the real store using a initrd service because
+      # we can't do it through nix modules because of ordering issues. Because of various other
+      # fuckery we can't depend on the fileSystem module.
+      (lib.mkIf needsBindUnit {
+        boot.initrd.systemd.services.bind-real-store = {
+          wantedBy = ["initrd-root-fs.target"];
+          requires = ["sysroot.mount"];
+          after = ["sysroot.mount"];
+          before = [
+            "initrd-root-fs.target"
+            (mountUnit metadataDir)
+            (mountUnit "/nix/store")
+          ];
+          unitConfig.DefaultDependencies = false;
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
           };
-        }
-      ))
-
-      {
-        # TODO: Remove this testing stuff
-        # virtualisation.fileSystems."/nix/store".mountPoint = lib.mkDefault cfg.realStoreDir;
-
-        # fileSystems."/nix/store" = lib.mkIf (base.config.fileSystems ? "/nix/store") {
-        #   mountPoint = cfg.realStoreDir;
-        # };
-
-        # EMPTY FOR TESTING
-
-        # virtualisation.fileSystems.${cfg.metadataDir} = {
-        #   device = "${erofsImage}";
-        #   fsType = "erofs";
-        #   options = ["loop" "ro"];
-        #   neededForBoot = true;
-        # };
-
-        # fileSystems.${cfg.metadataDir} = {
-        #   device = "${erofsImage}";
-        #   fsType = "erofs";
-        #   options = ["loop" "ro"];
-        #   neededForBoot = true;
-        # };
-
-        # virtualisation.fileSystems."/nix/store-selinux" = {
-        #   mountPoint = "/nix/store";
-        #   device = "overlay";
-        #   fsType = "overlay";
-        #   neededForBoot = true;
-        #   options = [
-        #     "metacopy=on"
-        #     "redirect_dir=on"
-        #   ];
-        #   # need: overlayfs,
-        #   depends = [cfg.realStoreDir cfg.metadataDir];
-        #   overlay.lowerdir = [
-        #     "${cfg.metadataDir}:"
-        #     cfg.realStoreDir
-        #   ];
-        # };
-
-        # We can just change the mount point of the configured nix store to point to a new location.
-        # e.g. fileSystems."/nix/store".mountPoint = "/.nix-store";
-        #      fileSystems."/nix/selinux-store".mountPoint = "/nix/store";
-
-        # We have 2 solutions here. Implement our own store, or perhaps
-        # use the experimental-local-overlay-store.
-        #
-        # Leaning towards the experimental-overlay-store here.
-        # Just need to make sure that it is mounted properly.
-        #
-        # If /nix/store is already an overlayfs... what should we do.
-        #
-        # One solution could be to use an overlay over the config,
-        # and provide which the overlay moves the /nix/store
-        # config to a new path, and sets the stuff for the module.
-
-        # system.build.selinuxStoreImage = cfg.image;
-      }
+          script = ''
+            mkdir -p /sysroot/nix/store /sysroot${realStoreDir}
+            mount --bind /sysroot/nix/store /sysroot${realStoreDir}
+            mount --make-private /sysroot${realStoreDir}
+          '';
+        };
+      })
     ]
   );
 }
