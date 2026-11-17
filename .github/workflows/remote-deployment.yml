@@ -20,7 +20,7 @@ jobs:
             keep-env-derivations = true
             keep-outputs = true
 
-      - Restore Cache
+      - name: Restore Cache
         id: nix-cache-restore
         uses: nix-community/cache-nix-action/restore@v7
         with:
