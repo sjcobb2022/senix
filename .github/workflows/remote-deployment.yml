@@ -20,15 +20,22 @@ jobs:
             keep-env-derivations = true
             keep-outputs = true
 
-      - uses: nix-community/cache-nix-action@v7
+      - Restore Cache
+        id: nix-cache-restore
+        uses: nix-community/cache-nix-action/restore@v7
         with:
           primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
-          
-          # Reuse previously cached derivations and dependencies even
-          # when Nix expressions or the flake lockfile change.
           restore-prefixes-first-match: |
             nix-${{ runner.os }}-
-          
+
+      - name: Run remote-deployment check
+        run: nix build .#checks.x86_64-linux.remote-deployment -L
+      
+      - name: Save Cache
+        if: always() && steps.nix-cache-restore.outputs.hit-primary-key != 'true'
+        uses: nix-community/cache-nix-action/save@v7
+        with:
+          primary-key: ${{ steps.nix-cache-restore.outputs.primary-key }}
           # Leave enough room for large NixOS test dependencies.
           gc-max-store-size-linux: 10G
 
@@ -42,6 +49,3 @@ jobs:
 
           # Never purge the cache currently being generated.
           purge-primary-key: never
-
-      - name: Run remote-deployment check
-        run: nix build .#checks.x86_64-linux.remote-deployment -L
