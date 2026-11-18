@@ -2,7 +2,7 @@
   description = "SELinux support for NixOS";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     flake-compat = {
       url = "github:NixOS/flake-compat";
