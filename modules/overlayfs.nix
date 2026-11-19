@@ -36,13 +36,6 @@
   realStoreDir = toString cfg.realStoreDir;
   metadataDir = toString cfg.metadataDir;
 
-  originalStoreFs = lib.mkMerge [
-    baseFileSystems."/nix/store"
-    {
-      mountPoint = realStoreDir;
-    }
-  ];
-
   erofsImage = pkgs.callPackage ../pkgs/mk-store-image.nix {
     closure = closureInfo;
     contexts = null;
@@ -152,57 +145,31 @@ in {
         "/nix/store".mountPoint = cfg.realStoreDir;
       }))
 
-      (lib.mkIf (!hasStoreMount) (withFs {
-        ${realStoreDir} = {
-          device = "/nix//store";
-          fsType = "none";
-          options = [
-            "bind"
-            "private"
-            "x-mount.mkdir"
-            "x-systemd.after=sysroot.mount"
-            "x-systemd.before=${mountUnit metadataDir}"
-            "x-systemd.before=${mountUnit "/nix/store"}"
-          ];
-          neededForBoot = true;
-        };
-      }))
-
-      # No nix store defined, therefore we create our own bind mounted one at specified location.
-      # (lib.mkIf (!hasStoreMount) (withFs {
-      #   ${realStoreDir} = {
-      #     device = "/nix/store";
-      #     fsType = "none";
-      #     options = ["bind"];
-      #     neededForBoot = true;
-      #   };
-      # }))
-      #
       # # If we need a bind unit, then we have to bind the real store using a initrd service because
       # # we can't do it through nix modules because of ordering issues. Because of various other
       # # fuckery we can't depend on the fileSystem module.
-      # (lib.mkIf (!hasStoreMount) {
-      #   boot.initrd.systemd.services.bind-real-store = {
-      #     wantedBy = ["initrd-root-fs.target"];
-      #     requires = ["sysroot.mount"];
-      #     after = ["sysroot.mount"];
-      #     before = [
-      #       "initrd-root-fs.target"
-      #       (mountUnit metadataDir)
-      #       (mountUnit "/nix/store")
-      #     ];
-      #     unitConfig.DefaultDependencies = false;
-      #     serviceConfig = {
-      #       Type = "oneshot";
-      #       RemainAfterExit = true;
-      #     };
-      #     script = ''
-      #       mkdir -p /sysroot/nix/store /sysroot${realStoreDir}
-      #       mount --bind /sysroot/nix/store /sysroot${realStoreDir}
-      #       mount --make-private /sysroot${realStoreDir}
-      #     '';
-      #   };
-      # })
+      (lib.mkIf (!hasStoreMount) {
+        boot.initrd.systemd.services.bind-real-store = {
+          wantedBy = ["initrd-root-fs.target"];
+          requires = ["sysroot.mount"];
+          after = ["sysroot.mount"];
+          before = [
+            "initrd-root-fs.target"
+            (mountUnit metadataDir)
+            (mountUnit "/nix/store")
+          ];
+          unitConfig.DefaultDependencies = false;
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+          };
+          script = ''
+            mkdir -p /sysroot/nix/store /sysroot${realStoreDir}
+            mount --bind /sysroot/nix/store /sysroot${realStoreDir}
+            mount --make-private /sysroot${realStoreDir}
+          '';
+        };
+      })
     ]
   );
 }
