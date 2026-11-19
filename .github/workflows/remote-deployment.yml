@@ -13,6 +13,8 @@ jobs:
       id-token: write
       contents: read
     steps:
+      - uses: actions/checkout@v7
+
       - uses: cachix/install-nix-action@v31
         with:
           enable_kvm: true
