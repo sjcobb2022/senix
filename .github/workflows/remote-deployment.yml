@@ -13,39 +13,15 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: actions/checkout@v6
-      - uses: nixbuild/nix-quick-install-action@v35
+      - uses: cachix/install-nix-action@v31
         with:
-          nix_conf: |
-            keep-env-derivations = true
-            keep-outputs = true
-
-      - name: Restore Cache
-        id: nix-cache-restore
-        uses: nix-community/cache-nix-action/restore@v7
+          enable_kvm: true
+          extra_nix_config: "system-features = nixos-test benchmark big-parallel kvm"
+      
+      - uses: cachix/cachix-action@v17
         with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
-          restore-prefixes-first-match: |
-            nix-${{ runner.os }}-
+          name: senix 
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
 
       - name: Run remote-deployment check
-        run: nix build .#checks.x86_64-linux.remote-deployment -L
-      
-      - name: Save Cache
-        if: always() && steps.nix-cache-restore.outputs.hit-primary-key != 'true'
-        uses: nix-community/cache-nix-action/save@v7
-        with:
-          primary-key: ${{ steps.nix-cache-restore.outputs.primary-key }}
-          # Leave enough room for large NixOS test dependencies.
-          gc-max-store-size-linux: 10G
-
-          # Keep older caches around for reuse.
-          purge: true
-          purge-prefixes: nix-${{ runner.os }}-
-
-          # Keep caches for at least 30 days since creation/access.
-          purge-created: 2592000
-          purge-last-accessed: P30D
-
-          # Never purge the cache currently being generated.
-          purge-primary-key: never
+        run: nix build .#checks.x86_64-linux.remote-deployment -L    
