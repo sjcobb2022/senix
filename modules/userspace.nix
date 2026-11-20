@@ -60,7 +60,7 @@ in {
 
     # Disable check because the sandbox that we have at least does not have selinux enable so it can't run the necessary tests.
     environment.systemPackages = [
-      (lib.hiPrio (pkgs.coreutils-full.override {selinuxSupport = true;}).overrideAttrs {doCheck = false;})
+      (lib.hiPrio ((pkgs.coreutils-full.override {selinuxSupport = true;}).overrideAttrs {doCheck = false;}))
     ];
   };
 }
