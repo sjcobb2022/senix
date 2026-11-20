@@ -2,16 +2,16 @@
   pkgs,
   self,
   ...
-}: let
-  inherit
-    (import (pkgs.path + "/nixos/tests/ssh-keys.nix") pkgs)
+}:
+let
+  inherit (import (pkgs.path + "/nixos/tests/ssh-keys.nix") pkgs)
     snakeOilPrivateKey
     snakeOilPublicKey
     ;
 
   deployable = {
     services.openssh.enable = true;
-    users.users.root.openssh.authorizedKeys.keys = [snakeOilPublicKey];
+    users.users.root.openssh.authorizedKeys.keys = [ snakeOilPublicKey ];
 
     # A deployable machine should be able to write to the bootloader entry.
     virtualisation.useBootLoader = true;
@@ -27,30 +27,31 @@
     virtualisation.fileSystems."/".autoResize = true;
   };
 in
-  pkgs.testers.nixosTest {
-    name = "remote-deployment";
+pkgs.testers.nixosTest {
+  name = "remote-deployment";
 
-    nodes = {
-      machine1 = {nodes, ...}: {
-        nix.settings.experimental-features = ["nix-command"];
-        virtualisation.additionalPaths = [
-          nodes.target.system.build.toplevel
-        ];
-      };
+  nodes = {
+    machine1 = { nodes, ... }: {
+      nix.settings.experimental-features = [ "nix-command" ];
+      virtualisation.additionalPaths = [
+        nodes.target.system.build.toplevel
+      ];
+    };
 
-      machine2 = {
-        imports = [deployable];
-      };
+    machine2 = {
+      imports = [ deployable ];
+    };
 
-      target = {
+    target =
+      {
         lib,
         nodes,
         ...
-      }: {
+      }:
+      {
         imports = [
           deployable
           self.nixosModules.default
-          self.nixosModules.overlayfs
         ];
 
         # Allow switching to this configuration.
@@ -67,11 +68,14 @@ in
         networking.interfaces.eth1.ipv4.addresses =
           lib.mkForce nodes.machine2.networking.interfaces.eth1.ipv4.addresses;
       };
-    };
+  };
 
-    testScript = {nodes, ...}: let
+  testScript =
+    { nodes, ... }:
+    let
       toplevel = nodes.target.system.build.toplevel;
-    in ''
+    in
+    ''
       machine1.start()
       machine2.start()
 
@@ -106,4 +110,4 @@ in
           # machine2.wait_for_open_port(22)
           # assert machine1.succeed("ssh root@machine2 getenforce").strip() == "Enforcing"
     '';
-  }
+}
