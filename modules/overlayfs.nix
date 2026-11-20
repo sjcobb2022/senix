@@ -193,7 +193,11 @@ in
 
       # Move mountPoint of nix store if already present.
       (lib.mkIf hasStoreMount (withFs {
-        "/nix/store".mountPoint = cfg.realStoreDir;
+        "/nix/store" = {
+          mountPoint = cfg.realStoreDir;
+          # We need the contents from the store at boot time.
+          neededForBoot = true;
+        };
       }))
 
       # If we need a bind unit, then we have to bind the real store using a initrd service because
