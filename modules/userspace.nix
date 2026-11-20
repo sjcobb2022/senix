@@ -3,9 +3,9 @@
   lib,
   pkgs,
   ...
-}: let
-  inherit
-    (lib)
+}:
+let
+  inherit (lib)
     mkOption
     mkIf
     types
@@ -13,7 +13,8 @@
     ;
 
   cfg = config.security.selinux.userspace;
-in {
+in
+{
   options.security.selinux.userspace = {
     enable = mkOption {
       type = types.bool;
@@ -24,23 +25,23 @@ in {
   };
 
   config = mkIf cfg.enable {
-    systemd.package = mkDefault (pkgs.systemd.override {withSelinux = true;});
+    systemd.package = mkDefault (pkgs.systemd.override { withSelinux = true; });
 
-    services.openssh.package = mkDefault (pkgs.openssh.override {withSelinux = true;});
+    services.openssh.package = mkDefault (pkgs.openssh.override { withSelinux = true; });
 
     # TODO: Open nixpkgs issue to make this configurable
     services.dbus.dbusPackage = mkDefault (
       pkgs.dbus.overrideAttrs (old: {
-        buildInputs = (old.buildInputs or []) ++ [pkgs.libselinux];
-        mesonFlags = (old.mesonFlags or []) ++ [(lib.mesonEnable "selinux" true)];
+        buildInputs = (old.buildInputs or [ ]) ++ [ pkgs.libselinux ];
+        mesonFlags = (old.mesonFlags or [ ]) ++ [ (lib.mesonEnable "selinux" true) ];
       })
     );
 
     # TODO: Open a nixpkgs issue to make this configurable.
     security.pam.package = mkDefault (
       pkgs.linux-pam.overrideAttrs (old: {
-        buildInputs = (old.buildInputs or []) ++ [pkgs.libselinux];
-        mesonFlags = (old.mesonFlags or []) ++ [(lib.mesonEnable "selinux" true)];
+        buildInputs = (old.buildInputs or [ ]) ++ [ pkgs.libselinux ];
+        mesonFlags = (old.mesonFlags or [ ]) ++ [ (lib.mesonEnable "selinux" true) ];
 
         postPatch =
           (old.postPatch or "")
@@ -56,11 +57,13 @@ in {
       })
     );
 
-    systemd.tmpfiles.rules = ["d /run/sepermit 0755 root root -"];
+    systemd.tmpfiles.rules = [ "d /run/sepermit 0755 root root -" ];
 
     # Disable check because the sandbox that we have at least does not have selinux enable so it can't run the necessary tests.
     environment.systemPackages = [
-      (lib.hiPrio ((pkgs.coreutils-full.override {selinuxSupport = true;}).overrideAttrs {doCheck = false;}))
+      (lib.hiPrio (
+        (pkgs.coreutils-full.override { selinuxSupport = true; }).overrideAttrs { doCheck = false; }
+      ))
     ];
   };
 }

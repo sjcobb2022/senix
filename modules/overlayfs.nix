@@ -24,6 +24,11 @@ let
     rootPaths = cfg.closure;
   };
 
+  erofsImage = pkgs.callPackage ../pkgs/mk-store-image.nix {
+    closure = closureInfo;
+    contexts = null;
+  };
+
   hasVmFs = options.virtualisation ? fileSystems;
   withFs = defs: if hasVmFs then { virtualisation.fileSystems = defs; } else { fileSystems = defs; };
 
@@ -34,11 +39,6 @@ let
 
   realStoreDir = toString cfg.realStoreDir;
   metadataDir = toString cfg.metadataDir;
-
-  erofsImage = pkgs.callPackage ../pkgs/mk-store-image.nix {
-    closure = closureInfo;
-    contexts = null;
-  };
 
   imagePath = inSysroot "${realStoreDir}/${builtins.baseNameOf erofsImage}";
 
