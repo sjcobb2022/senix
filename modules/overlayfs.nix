@@ -12,9 +12,6 @@ let
 
   cfg = config.security.selinux.store;
 
-  sysroot = "/sysroot";
-  inSysroot = p: "${sysroot}${p}";
-
   # Create a base version of this config with this module disabled so we avoid getting infinite recursions.
   base = extendModules {
     modules = [ { security.selinux.store.enable = lib.mkForce false; } ];
@@ -39,6 +36,9 @@ let
 
   realStoreDir = toString cfg.realStoreDir;
   metadataDir = toString cfg.metadataDir;
+
+  sysroot = "/sysroot";
+  inSysroot = p: "${sysroot}${p}";
 
   imagePath = inSysroot "${realStoreDir}/${builtins.baseNameOf erofsImage}";
 
