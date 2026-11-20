@@ -225,6 +225,29 @@ in
           '';
         };
       })
+
+      # TODO: Investigate a initrd mount instead of a service? We may have to bind elsewhere i.e. /nix instead of /nix/store directly
+      # Something like this, but i am not sure if I like binding to /nix at the top level... maybe it's ok?
+      # Might mess with /nix/var which messes with other things... Might be ok since I think var is written by the daemon tho not sure.
+      # (lib.mkIf (!hasStoreMount) {
+      #   boot.initrd.systemd.mounts = [
+      #     {
+      #       what = inSysroot "/nix";
+      #       where = inSysroot realStoreDir;
+      #       type = "none";
+      #       options = "bind,private";
+      #       wantedBy = [ "initrd-root-fs.target" ];
+      #       requires = [ sysrootMountUnit ];
+      #       after = [ sysrootMountUnit ];
+      #       before = [
+      #         "initrd-root-fs.target"
+      #         (mountUnit metadataDir)
+      #         (mountUnit "/nix/store")
+      #       ];
+      #       unitConfig.DefaultDependencies = false;
+      #     }
+      #   ];
+      # })
     ]
   );
 }
