@@ -6,14 +6,18 @@
   options,
   utils,
   ...
-}: let
+}:
+let
   inherit (lib) mkOption types literalExpression;
 
   cfg = config.security.selinux.store;
 
+  sysroot = "/sysroot";
+  inSysroot = p: "${sysroot}${p}";
+
   # Create a base version of this config with this module disabled so we avoid getting infinite recursions.
   base = extendModules {
-    modules = [{security.selinux.store.enable = lib.mkForce false;}];
+    modules = [ { security.selinux.store.enable = lib.mkForce false; } ];
   };
 
   closureInfo = pkgs.closureInfo {
@@ -21,15 +25,10 @@
   };
 
   hasVmFs = options.virtualisation ? fileSystems;
-  withFs = defs:
-    if hasVmFs
-    then {virtualisation.fileSystems = defs;}
-    else {fileSystems = defs;};
+  withFs = defs: if hasVmFs then { virtualisation.fileSystems = defs; } else { fileSystems = defs; };
 
   baseFileSystems =
-    if hasVmFs
-    then base.config.virtualisation.fileSystems
-    else base.config.fileSystems;
+    if hasVmFs then base.config.virtualisation.fileSystems else base.config.fileSystems;
 
   hasStoreMount = baseFileSystems ? "/nix/store";
 
@@ -41,14 +40,17 @@
     contexts = null;
   };
 
-  imagePath = "/sysroot${realStoreDir}/${builtins.baseNameOf erofsImage}";
+  imagePath = inSysroot "${realStoreDir}/${builtins.baseNameOf erofsImage}";
 
-  mountUnit = p: "${utils.escapeSystemdPath "/sysroot${p}"}.mount";
-in {
+  mountUnit = p: "${utils.escapeSystemdPath (inSysroot p)}.mount";
+  sysrootMountUnit = "${utils.escapeSystemdPath sysroot}.mount";
+in
+{
   options.security.selinux.store = {
     enable = mkOption {
       type = types.bool;
-      default = true;
+      default = config.security.selinux.enable;
+      description = "A hidden enable state used for disabling this module to prevent infinite filesystem";
       internal = true;
     };
 
@@ -65,12 +67,12 @@ in {
     };
 
     # The location of the stored contexts.
-    contextsDir = mkOption {};
+    contextsDir = mkOption { };
 
     # The system paths.
     closure = mkOption {
       type = types.listOf types.package; # Either a derivation or a store path. Which is what we want.
-      default = [base.config.system.build.toplevel]; # This should be more than enough for most cases.
+      default = [ base.config.system.build.toplevel ]; # This should be more than enough for most cases.
       defaultText = literalExpression "[ config_without_senix_module.system.build.toplevel ]";
       description = ''
         A list of closures to be described by the nixos system
@@ -80,9 +82,58 @@ in {
 
   config = lib.mkIf cfg.enable (
     lib.mkMerge [
-      # # Assertions
-      # {
-      # }
+      # Assertions
+      (
+        let
+          asPath = p: /. + p;
+
+          isNormalised = p: lib.hasPrefix "/" p && toString (asPath p) == p;
+
+          components = p: lib.path.subpath.components (lib.path.splitRoot (asPath p)).subpath;
+
+          isRootLevel = p: isNormalised p && lib.length (components p) == 1;
+
+          existingMountPoints = lib.mapAttrsToList (_: fs: fs.mountPoint) baseFileSystems;
+
+          dirAssertions = name: p: {
+            assertions = [
+              {
+                assertion = isRootLevel p;
+                message = ''
+                  security.selinux.store.${name} must be a normalised root level path such as
+                  "/.nix-store", but it is set to "${p}".
+                '';
+              }
+              {
+                assertion = !(lib.elem p existingMountPoints);
+                message = ''
+                  security.selinux.store.${name} ("${p}") is already used as the mount point
+                  of another file system.
+                '';
+              }
+            ];
+          };
+        in
+        lib.mkMerge [
+          (dirAssertions "realStoreDir" realStoreDir)
+          (dirAssertions "metadataDir" metadataDir)
+          {
+            assertions = [
+              {
+                assertion = realStoreDir != metadataDir;
+                message = ''
+                  security.selinux.store.realStoreDir and security.selinux.store.metadataDir
+                  must be different paths, but both are set to "${realStoreDir}".
+                '';
+              }
+              {
+                assertion = config.security.selinux.enable;
+                message = "security.selinux.store.enable requires security.selinux.enable.";
+              }
+            ];
+          }
+        ]
+      )
 
       # Common store and settings
       {
@@ -96,7 +147,7 @@ in {
         nix.settings.store = "auto?real=${realStoreDir}";
 
         # Need erofs loop and overlay for the stores
-        boot.initrd.supportedFilesystems = ["erofs"];
+        boot.initrd.supportedFilesystems = [ "erofs" ];
         boot.initrd.kernelModules = [
           "loop"
           "erofs"
@@ -104,7 +155,7 @@ in {
         ];
 
         # Make sure the image is in the closure since we only reference by string
-        system.extraDependencies = [erofsImage];
+        system.extraDependencies = [ erofsImage ];
       }
 
       # Setup absolute filesystem stuff
@@ -117,7 +168,7 @@ in {
             "ro"
           ];
           neededForBoot = true;
-          depends = [realStoreDir];
+          depends = [ realStoreDir ];
         };
 
         "/nix/store-selinux" = {
@@ -145,14 +196,14 @@ in {
         "/nix/store".mountPoint = cfg.realStoreDir;
       }))
 
-      # # If we need a bind unit, then we have to bind the real store using a initrd service because
-      # # we can't do it through nix modules because of ordering issues. Because of various other
-      # # fuckery we can't depend on the fileSystem module.
+      # If we need a bind unit, then we have to bind the real store using a initrd service because
+      # we can't do it through nix modules because of ordering issues. Because of various other
+      # fuckery we can't depend on the fileSystem module.
       (lib.mkIf (!hasStoreMount) {
         boot.initrd.systemd.services.bind-real-store = {
-          wantedBy = ["initrd-root-fs.target"];
-          requires = ["sysroot.mount"];
-          after = ["sysroot.mount"];
+          wantedBy = [ "initrd-root-fs.target" ];
+          requires = [ sysrootMountUnit ];
+          after = [ sysrootMountUnit ];
           before = [
             "initrd-root-fs.target"
             (mountUnit metadataDir)
@@ -164,9 +215,9 @@ in {
             RemainAfterExit = true;
           };
           script = ''
-            mkdir -p /sysroot/nix/store /sysroot${realStoreDir}
-            mount --bind /sysroot/nix/store /sysroot${realStoreDir}
-            mount --make-private /sysroot${realStoreDir}
+            mkdir -p ${inSysroot "/nix/store"} ${inSysroot realStoreDir}
+            mount --bind ${inSysroot "/nix/store"} ${inSysroot realStoreDir}
+            mount --make-private ${inSysroot realStoreDir}
           '';
         };
       })
