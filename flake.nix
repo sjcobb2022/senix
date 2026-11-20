@@ -10,6 +10,13 @@
     };
   };
 
+  nixConfig = {
+    extra-substituters = [ "https://senix.cachix.org" ];
+    extra-trusted-public-keys = [
+      "senix.cachix.org-1:2N3Djfr0yy4tZfhKm5BCWmXhVd3V29IH0W1CG9q3XQo="
+    ];
+  };
+
   outputs =
     {
       self,
@@ -37,7 +44,14 @@
 
       nixosModules.senix = import ./modules/selinux.nix;
       nixosModules.overlayfs = import ./modules/overlayfs.nix;
-      nixosModules.default = self.nixosModules.senix;
+      nixosModules.userspace = import ./modules/userspace.nix;
+      nixosModules.default = {
+        imports = [
+          self.nixosModules.senix
+          self.nixosModules.overlayfs
+          self.nixosModules.userspace
+        ];
+      };
 
       # WARNING: THESE TESTS ARE NOT WORKING AND ARE UNDER DEVELOPMENT
       checks = forEachPkgs (pkgs: lib.mapAttrs (_: path: import path { inherit pkgs self; }) tests);
