@@ -232,4 +232,27 @@ perhaps allow us to mark files in a tar file for example, just by default
 without having to write a c program.
 
 ref:
-https://man.archlinux.org/man/extra/erofs-utils/mkfs.erofs.1.en#file-contexts=
+https://man.archlinux.org/man/extra/erofs-utils/mkfs.erofs.1.en#file-contexts
+
+Recently, I have also found out that we can merge erofs images. This may be
+useful, for example, for creating a tiny erofs image for every package (which
+can be evaluated probably in parallel by that point since all the closure paths
+would be known), and then merging them all into one big package. Performance
+wise, I have no idea if that would work.
+
+## On making selinux rules match the nix store
+
+It may be feasible (I have not thought about this too thoroughly so take it with
+a grain of salt), to simply make every single package an alias for /usr perhaps,
+and so any rules that are defined under /usr/bin or similar match the state of
+the store.
+
+```
+$ ls /nix/store/4q6fbhjppzprkcqvAAy4994an0ww1vp5-systemd-262
+bin  etc  example  lib  sbin  share
+```
+
+If we were able to mark the output of the derivation as an alias to /usr or in
+fact simply the root we would be able to apply all the same rules that.
+
+Or just set the contexts in the contexts OF the root.
