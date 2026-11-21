@@ -53,6 +53,17 @@
         ];
       };
 
+      # WARNING: FOR TESTNG ONLY
+      packages = forEachPkgs (
+        pkgs:
+        let
+          pkgs' = pkgs.extend self.overlays.default;
+        in
+        lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          refpolicy = pkgs'.selinux-refpolicy;
+        }
+      );
+
       # WARNING: THESE TESTS ARE NOT WORKING AND ARE UNDER DEVELOPMENT
       checks = forEachPkgs (pkgs: lib.mapAttrs (_: path: import path { inherit pkgs self; }) tests);
 
