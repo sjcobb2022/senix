@@ -12,7 +12,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   version = "0.1.0";
 
   nativeBuildInputs = [
-    (erofs-utils.overrideAttrs {selinuxSupport = true;})
+    (erofs-utils.overrideAttrs { selinuxSupport = true; })
     coreutils
     findutils
   ];
