@@ -30,17 +30,25 @@
         "aarch64-darwin"
       ];
 
-      forEachPkgs = f: forEachSystem (sys: f nixpkgs.legacyPackages.${sys});
+      forEachPkgs =
+        f:
+        forEachSystem (
+          sys:
+          let
+            pkgs = nixpkgs.legacyPackages.${sys}.extend self.overlays.default;
+          in
+          f pkgs
+        );
 
       tests = {
         selinux = ./tests/selinux.nix;
         remote-deployment = ./tests/remote-deployment.nix;
         build-in-vm = ./tests/build-image-in-vm.nix;
+        erofs-generation = ./tests/erofs-generation.nix;
       };
     in
     {
-      overlays.senix = import ./overlay.nix;
-      overlays.default = self.overlays.senix;
+      overlays.default = import ./overlay.nix;
 
       nixosModules.senix = import ./modules/selinux.nix;
       nixosModules.overlayfs = import ./modules/overlayfs.nix;
@@ -53,18 +61,7 @@
         ];
       };
 
-      # WARNING: FOR TESTNG ONLY
-      packages = forEachPkgs (
-        pkgs:
-        let
-          pkgs' = pkgs.extend self.overlays.default;
-        in
-        lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-          refpolicy = pkgs'.selinux-refpolicy;
-        }
-      );
-
-      # WARNING: THESE TESTS ARE NOT WORKING AND ARE UNDER DEVELOPMENT
+      # WARNING: THESE TESTS ARE ONLY PARTIALLY WORKING AND ARE UNDER DEVELOPMENT
       checks = forEachPkgs (pkgs: lib.mapAttrs (_: path: import path { inherit pkgs self; }) tests);
 
       formatter = forEachPkgs (pkgs: pkgs.nixfmt-tree);

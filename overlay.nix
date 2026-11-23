@@ -9,7 +9,9 @@ final: prev: {
   });
 
   # Get tests working: ref https://github.com/NixOS/nixpkgs/issues/570146
-  swtpm = prev.swtpm.overrideAttrs (old: {
+  swtpm = prev.swtpm.overrideAttrs {
     doCheck = false;
-  });
+  };
+
+  erofs-utils = prev.erofs-utils.override { selinuxSupport = true; };
 }
