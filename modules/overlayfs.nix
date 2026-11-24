@@ -161,7 +161,7 @@ in
       # Setup absolute filesystem stuff
       (withFs {
         ${cfg.metadataDir} = {
-          device = "${imagePath}";
+          device = imagePath;
           fsType = "erofs";
           options = [
             "loop"
