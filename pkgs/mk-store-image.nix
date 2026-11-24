@@ -7,6 +7,13 @@
   closure,
   contexts,
 }:
+# Approach to go for really:
+#       for i in $(< $closureInfo/store-paths); do
+# passed in via:
+#       pkgs.runCommand "whatever"
+#       {
+#         closureInfo = pkgs.closureInfo { inherit rootPaths; };
+#       } ''your stuff here''
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "nix-closure-erofs";
   version = "0.1.0";
