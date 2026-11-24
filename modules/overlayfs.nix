@@ -21,7 +21,7 @@ let
     rootPaths = cfg.closure;
   };
 
-  erofsImage = pkgs.callPackage ../pkgs/closure-2-erofs.nix {
+  erofsImage = pkgs.callPackage ../pkgs/closure-2-erofs.nix { } {
     closure = closureInfo;
     contexts = "${pkgs.selinux-refpolicy}/etc/selinux/refpolicy/contexts/files";
   };
@@ -161,7 +161,7 @@ in
       # Setup absolute filesystem stuff
       (withFs {
         ${cfg.metadataDir} = {
-          device = imagePath;
+          device = "${imagePath}";
           fsType = "erofs";
           options = [
             "loop"
