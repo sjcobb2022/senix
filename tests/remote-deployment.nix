@@ -24,6 +24,9 @@ let
 
     boot.growPartition = true;
     virtualisation.fileSystems."/".autoResize = true;
+
+    # So we have getfattr
+    environment.systemPackages = [ pkgs.attr ];
   };
 
   deployableStoreMount = { config, ... }: {
@@ -208,6 +211,14 @@ pkgs.testers.nixosTest {
           assert source.endswith("[/nix/store]"), f"not a bind of /nix/store: {source!r}"
           fstype = machine3.succeed("findmnt -no FSTYPE ${realStoreDir3}").strip()
           assert fstype != "overlay", "overlay propagated into ${realStoreDir3}"
+
+      with subtest("labeled executable (hostname) runs and is labeled"):
+          assert machine2.succeed("hostname").strip() == "machine2"
+          assert machine3.succeed("hostname").strip() == "machine3"
+          label2 = machine2.succeed("getfattr -n security.selinux --only-values $(readlink -f $(command -v hostname))")
+          label3 = machine3.succeed("getfattr -n security.selinux --only-values $(readlink -f $(command -v hostname))")
+          assert "hostname_exec_t" in label2, f"machine2 hostname label: {label2!r}"
+          assert "hostname_exec_t" in label3, f"machine3 hostname label: {label3!r}"
 
       with subtest("new systems have SELinux enabled"):
            # machine2
