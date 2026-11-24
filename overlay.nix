@@ -2,6 +2,7 @@ final: prev: {
   selinux-refpolicy = prev.selinux-refpolicy.overrideAttrs (old: {
     pname = "selinux-refpolicy";
 
+    # build monolithic so that we have file_contexts super file
     makeFlags = old.makeFlags ++ [
       "MONOLITHIC=y"
       "SETFILES=${final.lib.getExe' final.policycoreutils "setfiles"}"
