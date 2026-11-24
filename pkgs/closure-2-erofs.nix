@@ -14,6 +14,7 @@ let
   mkImage = callPackage ../pkgs/util/context-2-erofs.nix { };
   merge = callPackage ../pkgs/util/erofs-2-image.nix { };
 
+  # "yuck gross IFD". YEH I KNOW
   paths = lib.filter (p: p != "") (lib.splitString "\n" (builtins.readFile "${closure}/store-paths"));
 
   contextFor =
