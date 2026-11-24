@@ -6,6 +6,7 @@ let
   mkContexts = pkgs.callPackage ../pkgs/util/sub-2-contexts.nix { };
   mkImage = pkgs.callPackage ../pkgs/util/context-2-erofs.nix { };
   merge = pkgs.callPackage ../pkgs/util/erofs-2-image.nix { };
+  mkErofs = pkgs.callPackage ../pkgs/closure-2-erofs.nix { };
 
   contextsFor =
     path:
@@ -28,9 +29,15 @@ let
     chmod +x $out/bin/hostname
   '';
 
+  consumer = pkgs.runCommand "test-consumer" { } ''
+    mkdir -p $out/bin
+    printf '#!/bin/sh\nexec ${hostname}/bin/hostname' > $out/bin/consumer
+    chmod +x $out/bin/consumer
+  '';
+
   other = pkgs.runCommand "test-other" { } ''
     mkdir -p $out/share
-    echo x > $out/share/dummy.txt
+    echo dummy > $out/share/dummy.txt
   '';
 
   imgHostname = imageFor hostname;
@@ -41,6 +48,10 @@ let
       imgOther
     ];
   };
+  imgErofs = mkErofs {
+    closure = pkgs.closureInfo { rootPaths = [ consumer ]; };
+    inherit contexts;
+  };
   imgHostname' = imgHostname.overrideAttrs (_: {
     name = "erofs-image-hostname-again";
   });
@@ -48,6 +59,7 @@ in
 pkgs.runCommand "erofs-generation" { nativeBuildInputs = [ pkgs.erofs-utils ]; } ''
   nameH=$(basename ${hostname})
   nameO=$(basename ${other})
+  nameC=$(basename ${consumer})
 
   # grep for the xattrs
   labels() {
@@ -57,18 +69,25 @@ pkgs.runCommand "erofs-generation" { nativeBuildInputs = [ pkgs.erofs-utils ]; }
   grep -qxF "${hostname}/bin /bin" ${mkSubs hostname}
   grep -qxF "${other}/share /usr/share" ${mkSubs other}
 
+  # we have /usr/bin/hostname in the refpolicy (just double checking)
+  expected=$(awk '$1 == "/usr/bin/hostname" { print $NF; exit }' ${contexts}/file_contexts)
+  test -n "$expected"
+
   # All the generated erofs are valid
   fsck.erofs ${imgHostname}
   fsck.erofs ${imgOther}
-  fsck.erofs ${merged}
 
   # We have the /bin/hostname and not /share/dummy.txt
   dump.erofs --ls --path=/nix/store ${imgHostname} | grep -F "$nameH"
   ! dump.erofs --ls --path=/nix/store ${imgHostname} | grep -qF "$nameO"
+  grep -aqF "$expected" ${imgHostname}
 
   # We have the /share/dummy.txt and not /bin/hostname
   dump.erofs --ls --path=/nix/store ${imgOther} | grep -F "$nameO"
   ! dump.erofs --ls --path=/nix/store ${imgOther} | grep -qF "$nameH"
+  ! grep -aqF "$expected" ${imgOther}
+
+  fsck.erofs ${merged}
 
   # merged has both
   dump.erofs --ls --path=/nix/store ${merged} | grep -F "$nameH"
@@ -78,20 +97,13 @@ pkgs.runCommand "erofs-generation" { nativeBuildInputs = [ pkgs.erofs-utils ]; }
   dump.erofs --ls --path=/nix/store/$nameH/bin ${merged} | grep -F hostname
   dump.erofs --ls --path=/nix/store/$nameO/share ${merged} | grep -F dummy.txt
 
-  # we have /usr/bin/hostname in the refpolicy (just double checking)
-  expected=$(awk '$1 == "/usr/bin/hostname" { print $NF; exit }' ${contexts}/file_contexts)
-  test -n "$expected"
-
-  # we have the correct labels in the correct places
-  grep -aqF "$expected" ${imgHostname}
-  ! grep -aqF "$expected" ${imgOther}
   grep -aqF "$expected" ${merged}
 
   # get all the unique labels on the two images
   {
     labels ${imgHostname}
     labels ${imgOther}
-  } | sort | uniq > union
+  } | sort -u > union
 
   # all the labels on the unique images are the
   labels ${merged} > merged-labels
@@ -99,6 +111,13 @@ pkgs.runCommand "erofs-generation" { nativeBuildInputs = [ pkgs.erofs-utils ]; }
 
   # we have the static uuid so that it doesn't create a new derivation output each time
   dump.erofs -s ${merged} | grep -i uuid | grep -F 00000000-0000-0000-0000-000000000000
+
+  # combined via closure-2-erofs also works fine.
+  fsck.erofs ${imgErofs}
+  dump.erofs --ls --path=/nix/store ${imgErofs} | grep -F "$nameC"
+  dump.erofs --ls --path=/nix/store ${imgErofs} | grep -F "$nameH"
+  ! dump.erofs --ls --path=/nix/store ${imgErofs} | grep -F "$nameO"
+  grep -aqF "$expected" ${imgErofs}
 
   # the modified hostnames are the same, not dependant over the pkg name
   cmp ${imgHostname} ${imgHostname'}

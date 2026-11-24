@@ -13,12 +13,7 @@ let
   mkImage = callPackage ../pkgs/util/context-2-erofs.nix { };
   merge = callPackage ../pkgs/util/erofs-2-image.nix { };
 
-  storePaths = lib.filter (p: p != "") (
-    lib.splitString "\n" builtins.readFile "${closure}/store-paths"
-  );
-
-  # Ensure that all the paths are store paths.
-  paths = map builtins.storePath storePaths;
+  paths = lib.filter (p: p != "") (lib.splitString "\n" (builtins.readFile "${closure}/store-paths"));
 
   contextFor =
     path:
@@ -31,7 +26,7 @@ let
     path:
     mkImage {
       inherit path;
-      context = "${contextFor path}/fileContexts";
+      context = "${contextFor path}/file_contexts";
     };
 in
 merge { images = map imageFor paths; }
