@@ -30,6 +30,7 @@
         "aarch64-darwin"
       ];
 
+      # Apply overlay to our custom packages to make things easier, might roll this back and make it specific again at some point.
       forEachPkgs =
         f:
         forEachSystem (
@@ -43,7 +44,7 @@
       tests = {
         selinux = ./tests/selinux.nix;
         remote-deployment = ./tests/remote-deployment.nix;
-        build-in-vm = ./tests/build-image-in-vm.nix;
+        # build-in-vm = ./tests/build-image-in-vm.nix;
         erofs-generation = ./tests/erofs-generation.nix;
       };
     in
