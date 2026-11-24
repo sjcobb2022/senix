@@ -6,31 +6,35 @@
   options,
   utils,
   ...
-}:
-let
+}: let
   inherit (lib) mkOption types literalExpression;
 
   cfg = config.security.selinux.store;
 
   # Create a base version of this config with this module disabled so we avoid getting infinite recursions.
   base = extendModules {
-    modules = [ { security.selinux.store.enable = lib.mkForce false; } ];
+    modules = [{security.selinux.store.enable = lib.mkForce false;}];
   };
 
   closureInfo = pkgs.closureInfo {
     rootPaths = cfg.closure;
   };
 
-  erofsImage = pkgs.callPackage ../pkgs/mk-store-image.nix {
+  erofsImage = pkgs.callPackage ../pkgs/closure-2-erofs.nix {
     closure = closureInfo;
-    contexts = null;
+    contexts = "${pkgs.selinux-refpolicy}/etc/selinux/refpolicy/contexts";
   };
 
   hasVmFs = options.virtualisation ? fileSystems;
-  withFs = defs: if hasVmFs then { virtualisation.fileSystems = defs; } else { fileSystems = defs; };
+  withFs = defs:
+    if hasVmFs
+    then {virtualisation.fileSystems = defs;}
+    else {fileSystems = defs;};
 
   baseFileSystems =
-    if hasVmFs then base.config.virtualisation.fileSystems else base.config.fileSystems;
+    if hasVmFs
+    then base.config.virtualisation.fileSystems
+    else base.config.fileSystems;
 
   hasStoreMount = baseFileSystems ? "/nix/store";
 
@@ -44,8 +48,7 @@ let
 
   mountUnit = p: "${utils.escapeSystemdPath (inSysroot p)}.mount";
   sysrootMountUnit = "${utils.escapeSystemdPath sysroot}.mount";
-in
-{
+in {
   options.security.selinux.store = {
     enable = mkOption {
       type = types.bool;
@@ -67,12 +70,12 @@ in
     };
 
     # The location of the stored contexts.
-    contextsDir = mkOption { };
+    contextsDir = mkOption {};
 
     # The system paths.
     closure = mkOption {
       type = types.listOf types.package; # Either a derivation or a store path. Which is what we want.
-      default = [ base.config.system.build.toplevel ]; # This should be more than enough for most cases.
+      default = [base.config.system.build.toplevel]; # This should be more than enough for most cases.
       defaultText = literalExpression "[ config_without_senix_module.system.build.toplevel ]";
       description = ''
         A list of closures to be described by the nixos system
@@ -114,25 +117,25 @@ in
             ];
           };
         in
-        lib.mkMerge [
-          (dirAssertions "realStoreDir" realStoreDir)
-          (dirAssertions "metadataDir" metadataDir)
-          {
-            assertions = [
-              {
-                assertion = realStoreDir != metadataDir;
-                message = ''
-                  security.selinux.store.realStoreDir and security.selinux.store.metadataDir
-                  must be different paths, but both are set to "${realStoreDir}".
-                '';
-              }
-              {
-                assertion = config.security.selinux.enable;
-                message = "security.selinux.store.enable requires security.selinux.enable.";
-              }
-            ];
-          }
-        ]
+          lib.mkMerge [
+            (dirAssertions "realStoreDir" realStoreDir)
+            (dirAssertions "metadataDir" metadataDir)
+            {
+              assertions = [
+                {
+                  assertion = realStoreDir != metadataDir;
+                  message = ''
+                    security.selinux.store.realStoreDir and security.selinux.store.metadataDir
+                    must be different paths, but both are set to "${realStoreDir}".
+                  '';
+                }
+                {
+                  assertion = config.security.selinux.enable;
+                  message = "security.selinux.store.enable requires security.selinux.enable.";
+                }
+              ];
+            }
+          ]
       )
 
       # Common store and settings
@@ -147,7 +150,7 @@ in
         nix.settings.store = "auto?real=${realStoreDir}";
 
         # Need erofs loop and overlay for the stores
-        boot.initrd.supportedFilesystems = [ "erofs" ];
+        boot.initrd.supportedFilesystems = ["erofs"];
         boot.initrd.kernelModules = [
           "loop"
           "erofs"
@@ -155,7 +158,7 @@ in
         ];
 
         # Make sure the image is in the closure since we only reference by string
-        system.extraDependencies = [ erofsImage ];
+        system.extraDependencies = [erofsImage];
       }
 
       # Setup absolute filesystem stuff
@@ -168,7 +171,7 @@ in
             "ro"
           ];
           neededForBoot = true;
-          depends = [ realStoreDir ];
+          depends = [realStoreDir];
         };
 
         "/nix/store-selinux" = {
@@ -205,9 +208,9 @@ in
       # fuckery we can't depend on the fileSystem module.
       (lib.mkIf (!hasStoreMount) {
         boot.initrd.systemd.services.bind-real-store = {
-          wantedBy = [ "initrd-root-fs.target" ];
-          requires = [ sysrootMountUnit ];
-          after = [ sysrootMountUnit ];
+          wantedBy = ["initrd-root-fs.target"];
+          requires = [sysrootMountUnit];
+          after = [sysrootMountUnit];
           before = [
             "initrd-root-fs.target"
             (mountUnit metadataDir)
