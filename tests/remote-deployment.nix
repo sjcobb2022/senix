@@ -212,6 +212,15 @@ pkgs.testers.nixosTest {
           fstype = machine3.succeed("findmnt -no FSTYPE ${realStoreDir3}").strip()
           assert fstype != "overlay", "overlay propagated into ${realStoreDir3}"
 
+      with subtest("debug hostname label"):
+          path = machine2.succeed("readlink -f $(command -v hostname)").strip()
+          pkg = path.split("/")[3]
+          print(machine2.succeed(f"getfattr -d -m - -h {path} 2>&1 || true"))
+          print(machine2.succeed(f"getfattr -d -m - -h ${metadataDir2}/{pkg}/bin/hostname 2>&1 || true"))
+          print(machine2.succeed(f"getfattr -d -m - -h ${realStoreDir2}/{pkg}/bin/hostname 2>&1 || true"))
+          print(machine2.succeed("cat /sys/fs/selinux/enforce 2>&1 || true"))
+          print(machine2.succeed("grep -E 'selinux|erofs|overlay' /proc/mounts"))
+
       with subtest("labeled executable (hostname) runs and is labeled"):
           assert machine2.succeed("hostname").strip() == "machine2"
           assert machine3.succeed("hostname").strip() == "machine3"
