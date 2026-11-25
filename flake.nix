@@ -62,6 +62,8 @@
         ];
       };
 
+      lib.cil = import ./lib/cil.nix;
+
       # WARNING: THESE TESTS ARE ONLY PARTIALLY WORKING AND ARE UNDER DEVELOPMENT
       checks = forEachPkgs (pkgs: lib.mapAttrs (_: path: import path { inherit pkgs self; }) tests);
 
