@@ -21,5 +21,6 @@ runCommand "context-2-erofs"
     --force-uid=0 --force-gid=0 \
     -U 00000000-0000-0000-0000-000000000000 \
     --file-contexts=${context} \
+    --mount-point=/nix/store \
     "$out" "$root"
 ''
