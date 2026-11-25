@@ -2,16 +2,16 @@
   pkgs,
   self,
   ...
-}: let
-  inherit
-    (import (pkgs.path + "/nixos/tests/ssh-keys.nix") pkgs)
+}:
+let
+  inherit (import (pkgs.path + "/nixos/tests/ssh-keys.nix") pkgs)
     snakeOilPrivateKey
     snakeOilPublicKey
     ;
 
   deployableBase = {
     services.openssh.enable = true;
-    users.users.root.openssh.authorizedKeys.keys = [snakeOilPublicKey];
+    users.users.root.openssh.authorizedKeys.keys = [ snakeOilPublicKey ];
 
     # A deployable machine should be able to write to the bootloader entry.
     virtualisation.useBootLoader = true;
@@ -26,11 +26,11 @@
     virtualisation.fileSystems."/".autoResize = true;
 
     # So we have getfattr
-    environment.systemPackages = [pkgs.attr];
+    environment.systemPackages = [ pkgs.attr ];
   };
 
-  deployableStoreMount = {config, ...}: {
-    imports = [deployableBase];
+  deployableStoreMount = { config, ... }: {
+    imports = [ deployableBase ];
 
     virtualisation.useNixStoreImage = true;
     virtualisation.writableStore = true;
@@ -47,84 +47,91 @@
     ];
   };
 
-  deployableBindStore = {
-    config,
-    lib,
-    ...
-  }: {
-    imports = [deployableBase];
+  deployableBindStore =
+    {
+      config,
+      lib,
+      ...
+    }:
+    {
+      imports = [ deployableBase ];
 
-    virtualisation.mountHostNixStore = lib.mkForce false;
-    virtualisation.useNixStoreImage = lib.mkForce false;
-    virtualisation.writableStore = lib.mkForce false;
+      virtualisation.mountHostNixStore = lib.mkForce false;
+      virtualisation.useNixStoreImage = lib.mkForce false;
+      virtualisation.writableStore = lib.mkForce false;
 
-    assertions = [
-      {
-        assertion = !(config.virtualisation.fileSystems ? "/nix/store");
-        message = ''
-          deployableBindStore expects no "/nix/store" entry in
-          virtualisation.fileSystems (hasStoreMount = false), but one exists.
-        '';
-      }
-    ];
-  };
-
-  mkTarget = {
-    deployable,
-    initial,
-  }: {
-    lib,
-    nodes,
-    ...
-  }: {
-    imports = [
-      deployable
-      self.nixosModules.default
-    ];
-
-    # Allow switching to this configuration.
-    system.switch.enable = true;
-
-    nixpkgs.overlays = [
-      self.overlays.default
-    ];
-
-    security.selinux.enable = true;
-    security.selinux.mode = "permissive";
-
-    networking.hostName = lib.mkForce initial;
-    networking.interfaces.eth1.ipv4.addresses =
-      lib.mkForce
-      nodes.${initial}.networking.interfaces.eth1.ipv4.addresses;
-  };
-in
-  pkgs.testers.nixosTest {
-    name = "remote-deployment";
-
-    nodes = {
-      machine1 = {nodes, ...}: {
-        nix.settings.experimental-features = ["nix-command"];
-        virtualisation.additionalPaths = [
-          nodes.target2.system.build.toplevel
-          nodes.target3.system.build.toplevel
-        ];
-      };
-
-      machine2.imports = [deployableStoreMount];
-      machine3.imports = [deployableBindStore];
-
-      target2 = mkTarget {
-        deployable = deployableStoreMount;
-        initial = "machine2";
-      };
-
-      target3 = mkTarget {
-        deployable = deployableBindStore;
-        initial = "machine3";
-      };
+      assertions = [
+        {
+          assertion = !(config.virtualisation.fileSystems ? "/nix/store");
+          message = ''
+            deployableBindStore expects no "/nix/store" entry in
+            virtualisation.fileSystems (hasStoreMount = false), but one exists.
+          '';
+        }
+      ];
     };
 
-    testScript = {nodes, ...}: let
+  mkTarget =
+    {
+      deployable,
+      initial,
+    }:
+    {
+      lib,
+      nodes,
+      ...
+    }:
+    {
+      imports = [
+        deployable
+        self.nixosModules.default
+      ];
+
+      # Allow switching to this configuration.
+      system.switch.enable = true;
+
+      nixpkgs.overlays = [
+        self.overlays.default
+      ];
+
+      security.selinux.enable = true;
+      security.selinux.mode = "permissive";
+
+      networking.hostName = lib.mkForce initial;
+      networking.interfaces.eth1.ipv4.addresses =
+        lib.mkForce
+          nodes.${initial}.networking.interfaces.eth1.ipv4.addresses;
+    };
+in
+pkgs.testers.nixosTest {
+  name = "remote-deployment";
+
+  nodes = {
+    machine1 = { nodes, ... }: {
+      nix.settings.experimental-features = [ "nix-command" ];
+      virtualisation.additionalPaths = [
+        nodes.target2.system.build.toplevel
+        nodes.target3.system.build.toplevel
+      ];
+    };
+
+    machine2.imports = [ deployableStoreMount ];
+    machine3.imports = [ deployableBindStore ];
+
+    target2 = mkTarget {
+      deployable = deployableStoreMount;
+      initial = "machine2";
+    };
+
+    target3 = mkTarget {
+      deployable = deployableBindStore;
+      initial = "machine3";
+    };
+  };
+
+  testScript =
+    { nodes, ... }:
+    let
       toplevel2 = nodes.target2.system.build.toplevel;
       toplevel3 = nodes.target3.system.build.toplevel;
 
@@ -132,7 +139,8 @@ in
       metadataDir2 = nodes.target2.security.selinux.store.metadataDir;
       realStoreDir3 = nodes.target3.security.selinux.store.realStoreDir;
       metadataDir3 = nodes.target3.security.selinux.store.metadataDir;
-    in ''
+    in
+    ''
       machine1.start()
       machine2.start()
       machine3.start()
@@ -243,4 +251,4 @@ in
            # machine3.wait_for_open_port(22)
            # assert machine1.succeed("ssh root@machine3 getenforce").strip() == "Enforcing"
     '';
-  }
+}
