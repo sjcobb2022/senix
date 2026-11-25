@@ -13,14 +13,13 @@ runCommand "context-2-erofs"
 }
 ''
   root="$TMPDIR/root"
-  mkdir -p "$root"
+  mkdir -p "$root/nix/store"
   cp -r --no-dereference --attributes-only --preserve=mode \
-    ${path} "$root"
+    ${path} "$root/nix/store"
 
   mkfs.erofs -zlz4 -T 0 \
     --force-uid=0 --force-gid=0 \
     -U 00000000-0000-0000-0000-000000000000 \
     --file-contexts=${context} \
-    --mount-point=/nix/store \
     "$out" "$root"
 ''
