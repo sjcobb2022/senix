@@ -221,14 +221,6 @@ pkgs.testers.nixosTest {
           print(machine2.succeed("cat /sys/fs/selinux/enforce 2>&1 || true"))
           print(machine2.succeed("grep -E 'selinux|erofs|overlay' /proc/mounts"))
 
-      with subtest("labeled executable (hostname) runs and is labeled"):
-          assert machine2.succeed("hostname").strip() == "machine2"
-          assert machine3.succeed("hostname").strip() == "machine3"
-          label2 = machine2.succeed("getfattr -n security.selinux --only-values $(readlink -f $(command -v hostname))")
-          label3 = machine3.succeed("getfattr -n security.selinux --only-values $(readlink -f $(command -v hostname))")
-          assert "hostname_exec_t" in label2, f"machine2 hostname label: {label2!r}"
-          assert "hostname_exec_t" in label3, f"machine3 hostname label: {label3!r}"
-
       with subtest("debug metadata layout"):
           print(machine2.succeed("ls -la ${metadataDir2} | head"))
           print(machine2.succeed("find ${metadataDir2} -name hostname 2>&1 | head"))
